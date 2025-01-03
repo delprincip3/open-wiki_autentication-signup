@@ -142,3 +142,60 @@ def test_auth():
         'session': bool(session.get('user_id')),
         'headers': dict(request.headers)
     }) 
+
+@auth_bp.route('/update-profile', methods=['PUT', 'OPTIONS'])
+def update_profile():
+    if request.method == 'OPTIONS':
+        return create_cors_response({})
+
+    logger.info('Received profile update request')
+    
+    if 'user_id' not in session:
+        logger.warning('Unauthorized profile update attempt')
+        return jsonify({'error': 'Not authenticated'}), 401
+        
+    data = request.get_json()
+    logger.debug(f'Profile update data received: {data}')
+    
+    user = User.query.get(session['user_id'])
+    if not user:
+        logger.warning(f'User not found for id: {session["user_id"]}')
+        return jsonify({'error': 'User not found'}), 404
+        
+    try:
+        # Verifica password attuale
+        if data.get('currentPassword'):
+            if not check_password_hash(user.password, data['currentPassword']):
+                logger.warning('Incorrect current password provided')
+                return jsonify({'error': 'Current password is incorrect'}), 400
+                
+            if data.get('newPassword'):
+                logger.info('Updating password')
+                user.password = generate_password_hash(data['newPassword'])
+                
+        # Aggiorna username se fornito
+        if data.get('username'):
+            # Verifica che il nuovo username non sia già in uso
+            existing_user = User.query.filter_by(username=data['username']).first()
+            if existing_user and existing_user.id != user.id:
+                logger.warning(f'Username {data["username"]} already taken')
+                return jsonify({'error': 'Username already taken'}), 400
+                
+            logger.info(f'Updating username from {user.username} to {data["username"]}')
+            user.username = data['username']
+            
+        db.session.commit()
+        logger.info('Profile updated successfully')
+        
+        return create_cors_response({
+            'message': 'Profile updated successfully',
+            'user': {
+                'id': str(user.id),
+                'username': user.username,
+                'avatar': f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}"
+            }
+        })
+    except Exception as e:
+        logger.error(f'Error updating profile: {str(e)}', exc_info=True)
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500 
