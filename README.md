@@ -63,13 +63,19 @@ cd open-wiki-authentication
 ### 2. Configura l'ambiente virtuale
 
 Crea l'ambiente virtuale
+```
 python -m venv venv
+```
 Attiva l'ambiente virtuale
-Per Windows:
-venv\Scripts\activate
-Per macOS/Linux:
-source venv/bin/activate
 
+Per Windows:
+```
+venv\Scripts\activate
+```
+Per macOS/Linux:
+```
+source venv/bin/activate
+```
 ### 3. Installa le dipendenze
 ```bash
 pip install -r requirements.txt
