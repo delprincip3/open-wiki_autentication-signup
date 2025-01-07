@@ -92,3 +92,38 @@ def logout():
     response.delete_cookie('session_id', path='/')
     logger.info("User logged out")
     return response, 200 
+
+@auth_bp.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    
+    if not username or not password:
+        logger.warning("Missing registration fields")
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    if User.query.filter_by(username=username).first():
+        logger.warning(f"Registration failed: username {username} already exists")
+        return jsonify({'error': 'Username already exists'}), 400
+
+    try:
+        hashed_password = generate_password_hash(password)
+        new_user = User(username=username, password=hashed_password)
+        db.session.add(new_user)
+        db.session.commit()
+        
+        logger.info(f"User {username} registered successfully")
+        return jsonify({
+            'message': 'User created successfully',
+            'user': {
+                'id': str(new_user.id),
+                'username': new_user.username,
+                'avatar': f"https://api.dicebear.com/7.x/avataaars/svg?seed={username}"
+            }
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'Registration failed'}), 500 
