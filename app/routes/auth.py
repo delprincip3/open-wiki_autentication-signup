@@ -127,3 +127,52 @@ def register():
         logger.error(f"Registration error: {str(e)}")
         db.session.rollback()
         return jsonify({'error': 'Registration failed'}), 500 
+
+@auth_bp.route('/update-profile', methods=['PUT'])
+def update_user():
+    # Verifica che l'utente sia autenticato
+    user_id = session.get('user_id')
+    session_id = request.cookies.get('session_id')
+    
+    if not user_id or not session_id or session_id != session.get('session_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    # Ottieni l'utente dal database
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    # Ottieni i dati dalla richiesta
+    data = request.get_json()
+    username = data.get('username')
+    current_password = data.get('currentPassword')
+    new_password = data.get('newPassword')
+
+    try:
+        # Se viene fornita una nuova password, verifica quella attuale
+        if new_password:
+            if not current_password or not check_password_hash(user.password, current_password):
+                return jsonify({'error': 'Current password is incorrect'}), 400
+            user.password = generate_password_hash(new_password)
+
+        # Se viene fornito un nuovo username, verifica che non sia già in uso
+        if username and username != user.username:
+            if User.query.filter_by(username=username).first():
+                return jsonify({'error': 'Username already exists'}), 400
+            user.username = username
+
+        # Salva le modifiche
+        db.session.commit()
+
+        return jsonify({
+            'message': 'User updated successfully',
+            'user': {
+                'id': str(user.id),
+                'username': user.username,
+                'avatar': f"https://api.dicebear.com/7.x/avataaars/svg?seed={user.username}"
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500 
